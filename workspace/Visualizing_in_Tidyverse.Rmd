@@ -1,0 +1,91 @@
+---
+title: "Visualizing_in_Tidyverse"
+author: "DLG"
+date: "12/3/2021"
+output: html_document
+---
+
+# Load libraries
+```{r}
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+library(stringr)
+library(viridis)
+```
+
+# Load data
+```{r}
+sales <- read_csv("data_fastfood_sales.csv")
+calories <- read_csv("data_fastfood_calories.csv")
+```
+
+# Problem 1
+```{r}
+sales_temp <- mutate(sales, prop_franchised = num_franchised_stores / unit_count)
+ggplot(sales_temp, aes(us_sales, unit_count, color = prop_franchised, label = restaurant)) +
+  geom_text_repel(color = "black") +
+  geom_point() +
+  scale_x_continuous(name = "U.S. sales in millions (log10 scale)", trans = "log10") +
+  scale_y_continuous(name = "Total number of stores (log10 scale)", trans = "log10") +
+  theme_light() +
+  labs(color = "Proportion of stores \nfranchised")
+```
+
+# Problem 2
+```{r}
+ggplot(sales) +
+  geom_col(aes(reorder(restaurant, average_sales), average_sales), size = 1) +
+  geom_text(aes(restaurant, average_sales, label = paste0("$",as.character(round(average_sales, 0)))), hjust = -0.1, vjust = 0.02, size = 3) +
+  scale_x_discrete(name = "Restaurant") +
+  scale_y_continuous(name = "Average sales per unit store (in thousands)", limits = c(0, 2800), labels = c("$0", "$1,000", "$2,000", "")) +
+  coord_flip() +
+  theme_classic()
+```
+
+# Problem 3
+```{r}
+ggplot(calories, aes(calories, sodium, label = item)) +
+  geom_point() +
+  geom_text_repel(data = filter(calories, sodium > 2300), size = 2, max.overlaps = 25, nudge_y = 1500, nudge_x = 1000, force = 2) +
+  geom_hline(yintercept = 2300) +
+  facet_wrap("restaurant", ncol = 3) +
+  scale_x_continuous(name = "Calories") +
+  scale_y_continuous(name = "Sodium (mg)") +
+  theme_light() 
+```
+
+# Problem 4
+```{r}
+calories_temp <- calories %>% 
+  mutate(is_salad = str_detect(item, "Salad")) %>%
+  group_by(restaurant) %>%
+  mutate(med_cal = median(calories))
+ggplot(calories_temp) +
+  geom_boxplot(aes(calories, reorder(restaurant, med_cal)), outlier.shape = NA) +
+  geom_point(aes(calories, restaurant, color = is_salad), position = position_jitter(height = 0.3)) +
+  scale_x_continuous(name = "Calories (log10 scale)", trans = "log10") +
+  scale_y_discrete(name = "Restaurant") +
+  theme_light() +
+  scale_color_manual(values = c("red", "blue"),labels = c("Not a salad", "Salad"), name = "Is the entree \na salad?")
+```
+
+# Problem 5
+```{r}
+sugar_temp <- calories %>% 
+  filter(restaurant != "Taco Bell") %>%
+  group_by(restaurant) %>%
+  select(restaurant, sugar) %>%
+  summarise(sugar, median(sugar, na.rm = TRUE)) %>%
+  rename (med_sugar = "median(sugar, na.rm = TRUE)") %>%
+  distinct(med_sugar)
+sales_temp <- inner_join(sales, sugar_temp)
+ggplot(sales_temp) +
+  geom_col(aes(reorder(restaurant, us_sales), us_sales, fill = med_sugar)) +
+  scale_fill_viridis(discrete= FALSE, option = "D") +
+  scale_x_discrete(name = "Restaurant") +
+  scale_y_continuous(name = "U.S. sales (in millions)") +
+  labs(fill = "Median sugar (grams) \nin fast food entrees") +
+  theme_classic()
+```
